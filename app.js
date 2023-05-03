@@ -2,6 +2,7 @@ const express = require("express");
 const ytdl = require("ytdl-core");
 const youtubePlaylist = require("youtube-playlist");
 const app = express();
+const clients = new Set();
 
 app.use(express.static("public"));
 app.use(express.json());
@@ -9,6 +10,24 @@ app.use(express.urlencoded({ extended: true }));
 
 app.post("/download", async (req, res) => {
   const url = req.body.url;
+  app.get("/progress", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    clients.add(res);
+
+    req.on("close", () => {
+      clients.delete(res);
+    });
+  });
+
+  function sendProgress(progress) {
+    for (const client of clients) {
+      client.write(`data: ${JSON.stringify(progress)}\n\n`);
+    }
+  }
 
   try {
     if (ytdl.validateURL(url)) {
@@ -26,7 +45,7 @@ app.post("/download", async (req, res) => {
       ytdl(url, { format: videoFormat })
         .on("progress", (chunkLength, downloaded, total) => {
           const progress = (downloaded / total) * 100;
-          console.log(`Downloading: ${progress.toFixed(2)}%`);
+          sendProgress({ progress: progress.toFixed(2) });
         })
         .pipe(res);
     } else if (youtubePlaylist.validateURL(url)) {

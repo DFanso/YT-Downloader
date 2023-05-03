@@ -36,3 +36,9 @@ form.addEventListener("submit", (event) => {
       progressDiv.innerHTML = "Error: " + error.message;
     });
 });
+
+const source = new EventSource("/progress");
+source.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  progressDiv.innerHTML = `Downloading: ${data.progress}%`;
+};
